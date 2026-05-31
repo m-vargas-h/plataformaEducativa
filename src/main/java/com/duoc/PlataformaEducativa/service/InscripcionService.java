@@ -19,6 +19,7 @@ public class InscripcionService {
     private final InscripcionRepository inscripcionRepository;
     private final CursoRepository cursoRepository;
     private final UsuarioRepository usuarioRepository;
+    private final AwsService awsService;
 
     // POST /inscripciones
     public Inscripcion crearInscripcion(Long usuarioId, List<Long> cursoIds) {
@@ -62,5 +63,31 @@ public class InscripcionService {
         }
 
         inscripcionRepository.delete(inscripcion);
+    }
+
+    // GET /inscripciones/{id}/resumen
+    public byte[] generarResumen(Long inscripcionId) {
+        Inscripcion inscripcion = inscripcionRepository.findById(inscripcionId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Inscripción no encontrada con id: " + inscripcionId));
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("====================================\n");
+        sb.append("     RESUMEN DE INSCRIPCIÓN\n");
+        sb.append("====================================\n\n");
+        sb.append("N° Inscripción : ").append(inscripcion.getId()).append("\n");
+        sb.append("Fecha          : ").append(inscripcion.getFechaInscripcion()).append("\n");
+        sb.append("Estudiante     : ").append(inscripcion.getUsuario().getNombre()).append("\n");
+        sb.append("Email          : ").append(inscripcion.getUsuario().getEmail()).append("\n\n");
+        sb.append("---- Cursos inscritos ----\n");
+        inscripcion.getCursos().forEach(curso ->
+            sb.append("  - ").append(curso.getNombre())
+            .append(" ($").append(curso.getCosto()).append(")\n")
+        );
+        sb.append("\n");
+        sb.append("Total a pagar  : $").append(inscripcion.getTotalPagar()).append("\n");
+        sb.append("====================================\n");
+
+        return sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
 }

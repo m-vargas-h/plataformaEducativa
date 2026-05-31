@@ -92,7 +92,7 @@
 			<scope>runtime</scope>
 		</dependency>
 
-		<!-- H2 para DB en memoria-->
+		<!-- H2 para DB en memoria -->
 		<dependency>
 			<groupId>com.h2database</groupId>
 			<artifactId>h2</artifactId>
@@ -104,6 +104,20 @@
 			<groupId>me.paulschwarz</groupId>
 			<artifactId>spring-dotenv</artifactId>
 			<version>4.0.0</version>
+		</dependency>
+
+		<!-- AWS SDK S3 -->
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>s3</artifactId>
+			<version>2.25.60</version>
+		</dependency>
+
+		<!-- AWS SDK STS -->
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>sts</artifactId>
+			<version>2.25.60</version>
 		</dependency>
 
 	</dependencies>
