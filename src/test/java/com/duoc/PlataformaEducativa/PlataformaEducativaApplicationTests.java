@@ -7,7 +7,12 @@ import org.springframework.test.context.TestPropertySource;
 @SpringBootTest
 @TestPropertySource(properties = {
     "jwt.secret=claveSecretaParaTestingDuoc2024xK9m",
-    "jwt.expiration=86400000"
+    "jwt.expiration=86400000",
+    "aws.accessKey=test",
+    "aws.secretKey=test",
+    "aws.sessionToken=test",
+    "aws.region=us-east-1",
+    "aws.s3.bucketName=test-bucket"
 })
 class PlataformaEducativaApplicationTests {
 
