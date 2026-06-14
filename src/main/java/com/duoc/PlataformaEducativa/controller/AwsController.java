@@ -54,6 +54,27 @@ public class AwsController {
                 .body(asset.getContent());
     }
 
+    // PUT /storage/update/{folder}/{fileName}  <-- NUEVO: reemplaza el contenido del archivo
+    @PutMapping("/update/{folder}/{fileName}")
+    public ResponseEntity<Map<String, String>> update(
+            @PathVariable String folder,
+            @PathVariable String fileName,
+            @RequestParam("file") MultipartFile file) throws IOException {
+
+        Asset asset = new Asset();
+        asset.setFolder(folder);
+        asset.setFileName(fileName);
+        asset.setContentType(file.getContentType());
+        asset.setContent(file.getBytes());
+
+        awsService.update(asset);
+
+        return ResponseEntity.ok(Map.of(
+            "mensaje", "Archivo actualizado exitosamente",
+            "ruta", folder + "/" + fileName
+        ));
+    }
+
     // PUT /storage/move/{folder}
     @PutMapping("/move/{folder}")
     public ResponseEntity<Map<String, String>> move(

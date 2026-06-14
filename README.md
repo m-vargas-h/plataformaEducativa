@@ -1,6 +1,6 @@
 # Plataforma Educativa — Sistema de Inscripción
 
-Microservicio desarrollado con Spring Boot para gestionar cursos e inscripciones de una plataforma educativa virtual, con almacenamiento de archivos en AWS S3.
+Microservicio desarrollado con Spring Boot para gestionar cursos e inscripciones de una plataforma educativa virtual, con almacenamiento de archivos en AWS S3, expuesto a través de AWS API Gateway y autenticado mediante Azure AD B2C como servicio IDaaS.
 
 ## Tecnologías
 - Java 21
@@ -8,6 +8,8 @@ Microservicio desarrollado con Spring Boot para gestionar cursos e inscripciones
 - Spring Security + JWT
 - H2 (base de datos en memoria)
 - AWS SDK v2 (S3)
+- AWS API Gateway (HTTP API)
+- Azure AD B2C (IDaaS)
 - Docker
 
 ## Requisitos previos
@@ -15,6 +17,7 @@ Microservicio desarrollado con Spring Boot para gestionar cursos e inscripciones
 - Maven
 - Docker
 - Cuenta AWS Academy
+- Cuenta Azure
 
 ## Configuración
 
@@ -27,7 +30,7 @@ Microservicio desarrollado con Spring Boot para gestionar cursos e inscripciones
 
 | Variable | Descripción |
 |---|---|
-| `JWT_SECRET` | Clave secreta para firmar tokens JWT (mínimo 32 caracteres) |
+| `JWT_SECRET` | Clave secreta para firmar tokens JWT internos (mínimo 32 caracteres) |
 | `AWS_ACCESS_KEY` | Access key obtenida desde AWS Academy |
 | `AWS_SECRET_KEY` | Secret key obtenida desde AWS Academy |
 | `AWS_SESSION_TOKEN` | Session token obtenido desde AWS Academy |
@@ -44,7 +47,7 @@ java -jar target/*.jar
 
 ### Con Docker
 ```bash
-docker build -t plataforma-educativa:1.0 .
+docker build -t plataforma-educativa:1.4 .
 docker run -d -p 8080:8080 \
   -e JWT_SECRET=tu_secret \
   -e AWS_ACCESS_KEY=tu_access_key \
@@ -52,7 +55,7 @@ docker run -d -p 8080:8080 \
   -e AWS_SESSION_TOKEN=tu_session_token \
   -e AWS_REGION=us-east-1 \
   -e AWS_BUCKET_NAME=tu_bucket \
-  --name plataforma-educativa plataforma-educativa:1.0
+  --name plataforma-educativa plataforma-educativa:1.4
 ```
 
 ## Usuarios de prueba
@@ -69,7 +72,7 @@ docker run -d -p 8080:8080 \
 | Método | Endpoint | Acceso | Descripción |
 |---|---|---|---|
 | POST | `/auth/register` | Público | Registrar usuario |
-| POST | `/auth/login` | Público | Login y obtener token JWT |
+| POST | `/auth/login` | Público | Login y obtener token JWT interno |
 
 ### Cursos
 | Método | Endpoint | Acceso | Descripción |
@@ -89,17 +92,29 @@ docker run -d -p 8080:8080 \
 | GET | `/inscripciones/{id}/resumen` | ADMIN, ALUMNO | Descargar resumen y subir a S3 |
 
 ### Storage S3
-| Método | Endpoint | Acceso | Descripción |
-|---|---|---|---|
-| POST | `/storage/upload/{folder}` | ADMIN, PROFESOR | Subir archivo al bucket |
-| GET | `/storage/download/{folder}/{fileName}` | Todos | Descargar archivo del bucket |
-| PUT | `/storage/move/{folder}` | ADMIN, PROFESOR | Renombrar archivo en el bucket |
-| DELETE | `/storage/delete/{folder}/{fileName}` | ADMIN | Eliminar archivo del bucket |
+> Los endpoints de storage están protegidos por AWS API Gateway mediante autorizador JWT de Azure AD B2C.
+> Para consumirlos se requiere un Access Token obtenido desde Azure AD B2C, enviado en el header `Authorization: Bearer <token>`.
 
-## Uso de endpoints protegidos
+| Método | Endpoint | Descripción |
+|---|---|---|
+| POST | `/storage/upload/{folder}` | Subir archivo al bucket |
+| GET | `/storage/download/{folder}/{fileName}` | Descargar archivo del bucket |
+| PUT | `/storage/update/{folder}/{fileName}` | Reemplazar contenido de un archivo en el bucket |
+| PUT | `/storage/move/{folder}` | Renombrar archivo en el bucket |
+| DELETE | `/storage/delete/{folder}/{fileName}` | Eliminar archivo del bucket |
 
+## Autenticación
+
+### Endpoints internos (cursos e inscripciones)
 1. Obtén el token haciendo login en `/auth/login`
 2. Agrega el token en el header de cada request:
 ```
-Authorization: Bearer <token>
+Authorization: Bearer <token_jwt_interno>
+```
+
+### Endpoints de storage (via API Gateway)
+1. Obtén el Access Token desde Azure AD B2C usando OAuth 2.0 Client Credentials en Postman
+2. Agrega el token en el header de cada request:
+```
+Authorization: Bearer <access_token_azure>
 ```

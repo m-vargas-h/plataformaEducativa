@@ -30,6 +30,23 @@ public class S3RepositoryImpl implements S3Repository {
         return asset;
     }
 
+    // Reemplaza el contenido de un archivo existente en S3 con la misma key
+    @Override
+    public Asset update(Asset asset, String bucketName) {
+        String key = asset.getFolder() + "/" + asset.getFileName();
+
+        s3Client.putObject(
+            PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(key)
+                .contentType(asset.getContentType())
+                .build(),
+            RequestBody.fromBytes(asset.getContent())
+        );
+
+        return asset;
+    }
+
     @Override
     public Asset download(String folder, String fileName, String bucketName) {
         String key = folder + "/" + fileName;
@@ -54,7 +71,6 @@ public class S3RepositoryImpl implements S3Repository {
         String oldKey = folder + "/" + oldFileName;
         String newKey = folder + "/" + newFileName;
 
-        // Copiar al nuevo nombre
         s3Client.copyObject(
             CopyObjectRequest.builder()
                 .sourceBucket(bucketName)
@@ -64,7 +80,6 @@ public class S3RepositoryImpl implements S3Repository {
                 .build()
         );
 
-        // Eliminar el original
         s3Client.deleteObject(
             DeleteObjectRequest.builder()
                 .bucket(bucketName)

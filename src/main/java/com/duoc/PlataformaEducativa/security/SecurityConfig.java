@@ -44,9 +44,12 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/inscripciones/**").hasAnyRole("ADMIN", "ALUMNO")
                 .requestMatchers(HttpMethod.DELETE, "/inscripciones/**").hasAnyRole("ADMIN", "ALUMNO")
 
+                // Storage S3 — autenticación delegada al API Gateway (Azure AD B2C)
+                // Spring Boot permite el paso; el token ya fue validado por AWS API Gateway
+                .requestMatchers("/storage/**").permitAll()
+
                 .anyRequest().authenticated()
             )
-            // Necesario para que H2 console funcione en iframe
             .headers(headers -> headers.frameOptions(frame -> frame.disable()))
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 

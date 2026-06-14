@@ -21,6 +21,11 @@ public class AwsServiceImpl implements AwsService {
     }
 
     @Override
+    public Asset update(Asset asset) {
+        return s3Repository.update(asset, bucketName);
+    }
+
+    @Override
     public Asset download(String folder, String fileName) {
         return s3Repository.download(folder, fileName, bucketName);
     }
