@@ -19,31 +19,19 @@ public class SecurityConfig {
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                // H2 console (solo desarrollo)
                 .requestMatchers("/h2-console/**").permitAll()
-
-                // Cursos
                 .requestMatchers(HttpMethod.GET, "/cursos/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/cursos").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/cursos/**").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/cursos/**").authenticated()
-
-                // Inscripciones
                 .requestMatchers(HttpMethod.POST, "/inscripciones").authenticated()
                 .requestMatchers(HttpMethod.GET, "/inscripciones/**").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/inscripciones/**").authenticated()
-
-                // Storage S3
                 .requestMatchers("/storage/**").authenticated()
-
                 .anyRequest().authenticated()
             )
             .headers(headers -> headers.frameOptions(frame -> frame.disable()))
-            .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> jwt.jwkSetUri(
-                    "${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}"
-                ))
-            );
+            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}));
 
         return http.build();
     }
