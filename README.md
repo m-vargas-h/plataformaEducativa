@@ -118,3 +118,4 @@ Authorization: Bearer <token_jwt_interno>
 ```
 Authorization: Bearer <access_token_azure>
 ```
+##
