@@ -11,7 +11,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import com.duoc.PlataformaEducativa.repository.UsuarioRepository;
 
@@ -31,10 +31,14 @@ public class InscripcionController {
     @PostMapping
     public ResponseEntity<Inscripcion> crearInscripcion(
             @RequestBody Map<String, List<Long>> body,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal Jwt jwt) {
+
+        String email = jwt.getClaimAsString("emails") != null
+                ? jwt.getClaimAsString("emails")
+                : jwt.getSubject();
 
         Long usuarioId = usuarioRepository
-                .findByEmail(userDetails.getUsername())
+                .findByEmail(email)
                 .orElseThrow()
                 .getId();
 
@@ -46,10 +50,14 @@ public class InscripcionController {
     // GET /inscripciones/mis-inscripciones
     @GetMapping("/mis-inscripciones")
     public ResponseEntity<List<Inscripcion>> misInscripciones(
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal Jwt jwt) {
+
+        String email = jwt.getClaimAsString("emails") != null
+                ? jwt.getClaimAsString("emails")
+                : jwt.getSubject();
 
         Long usuarioId = usuarioRepository
-                .findByEmail(userDetails.getUsername())
+                .findByEmail(email)
                 .orElseThrow()
                 .getId();
 
@@ -60,10 +68,14 @@ public class InscripcionController {
     @DeleteMapping("/{id}")
     public ResponseEntity<?> eliminarInscripcion(
             @PathVariable Long id,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal Jwt jwt) {
+
+        String email = jwt.getClaimAsString("emails") != null
+                ? jwt.getClaimAsString("emails")
+                : jwt.getSubject();
 
         Long usuarioId = usuarioRepository
-                .findByEmail(userDetails.getUsername())
+                .findByEmail(email)
                 .orElseThrow()
                 .getId();
 
@@ -72,12 +84,11 @@ public class InscripcionController {
     }
 
     // GET /inscripciones/{id}/resumen
-        @GetMapping("/{id}/resumen")
-        public ResponseEntity<byte[]> descargarResumen(@PathVariable Long id) {
+    @GetMapping("/{id}/resumen")
+    public ResponseEntity<byte[]> descargarResumen(@PathVariable Long id) {
         byte[] contenido = inscripcionService.generarResumen(id);
         String fileName = "resumen.txt";
 
-        // Subir a S3 en carpeta con el id de la inscripción
         Asset asset = new Asset();
         asset.setFolder(String.valueOf(id));
         asset.setFileName(fileName);
@@ -85,11 +96,10 @@ public class InscripcionController {
         asset.setContent(contenido);
         awsService.upload(asset);
 
-        // Retornar como descarga
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + fileName + "\"")
                 .contentType(MediaType.TEXT_PLAIN)
                 .body(contenido);
-        }
+    }
 }

@@ -1,25 +1,16 @@
 package com.duoc.PlataformaEducativa.security;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
-@RequiredArgsConstructor
 public class SecurityConfig {
-
-    private final JwtFilter jwtFilter;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -28,42 +19,32 @@ public class SecurityConfig {
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-
-                // Endpoints públicos
-                .requestMatchers("/auth/**").permitAll()
+                // H2 console (solo desarrollo)
                 .requestMatchers("/h2-console/**").permitAll()
 
                 // Cursos
-                .requestMatchers(HttpMethod.GET, "/cursos/**").hasAnyRole("ADMIN", "PROFESOR", "ALUMNO")
-                .requestMatchers(HttpMethod.POST, "/cursos").hasAnyRole("ADMIN", "PROFESOR")
-                .requestMatchers(HttpMethod.PUT, "/cursos/**").hasAnyRole("ADMIN", "PROFESOR")
-                .requestMatchers(HttpMethod.DELETE, "/cursos/**").hasAnyRole("ADMIN", "PROFESOR")
+                .requestMatchers(HttpMethod.GET, "/cursos/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/cursos").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/cursos/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/cursos/**").authenticated()
 
                 // Inscripciones
-                .requestMatchers(HttpMethod.POST, "/inscripciones").hasAnyRole("ADMIN", "ALUMNO")
-                .requestMatchers(HttpMethod.GET, "/inscripciones/**").hasAnyRole("ADMIN", "ALUMNO")
-                .requestMatchers(HttpMethod.DELETE, "/inscripciones/**").hasAnyRole("ADMIN", "ALUMNO")
+                .requestMatchers(HttpMethod.POST, "/inscripciones").authenticated()
+                .requestMatchers(HttpMethod.GET, "/inscripciones/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/inscripciones/**").authenticated()
 
-                // Storage S3 — autenticación delegada al API Gateway (Azure AD B2C)
-                // Spring Boot permite el paso; el token ya fue validado por AWS API Gateway
-                .requestMatchers("/storage/**").permitAll()
+                // Storage S3
+                .requestMatchers("/storage/**").authenticated()
 
                 .anyRequest().authenticated()
             )
             .headers(headers -> headers.frameOptions(frame -> frame.disable()))
-            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+            .oauth2ResourceServer(oauth2 -> oauth2
+                .jwt(jwt -> jwt.jwkSetUri(
+                    "${spring.security.oauth2.resourceserver.jwt.jwk-set-uri}"
+                ))
+            );
 
         return http.build();
-    }
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-
-    @Bean
-    public AuthenticationManager authenticationManager(
-            AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
     }
 }

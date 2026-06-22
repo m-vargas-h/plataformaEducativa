@@ -1,5 +1,5 @@
 name: Build and Push Docker Image
- 
+
 on:
   push:
     branches:
@@ -7,9 +7,10 @@ on:
   pull_request:
     branches:
       - main
-jobs: 
+
+jobs:
   build:
-    runs-on: ubuntu-latest 
+    runs-on: ubuntu-latest
     steps:
 
       # Paso 1: Checkout del repositorio
@@ -18,10 +19,10 @@ jobs:
 
       # Paso 2: Autenticar en DockerHub
       - name: Log in to DockerHub
-        uses: docker/login-action@v2 
+        uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}  #Usuario obtenido de docker
-          password: ${{ secrets.DOCKERHUB_TOKEN }}     #Token configurado y obtenido en docker
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # Paso 3: Construir la imagen de Docker
       - name: Build Docker Image
@@ -32,36 +33,56 @@ jobs:
       - name: Push Docker Image
         run: |
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/my-app:latest
-          
-     # Paso 5: Configurar credenciales de AWS para SSH, incluyendo AWS_SESSION_TOKEN
+
+      # Paso 5: Configurar credenciales de AWS
       - name: Set up AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}          # Estas 4 variables se obtienen del laboratiro de amazon
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1  
+          aws-region: us-east-1
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-    # Paso 5.5: 
+
+      # Paso 5.5: Agregar clave SSH
       - name: Add SSH Key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
+      # Paso 5.6: Generar application.yml con variables de entorno en EC2
+      - name: Generate application.yml on EC2
+        run: |
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${{ secrets.USER_SERVER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            mkdir -p ~/config
+            cat > ~/config/application.yml << YML
+            spring:
+              security:
+                oauth2:
+                  resourceserver:
+                    jwt:
+                      issuer-uri: ${{ secrets.AZURE_ISSUER_URI }}
+                      jwk-set-uri: ${{ secrets.AZURE_JWK_SET_URI }}
+            aws:
+              accessKey: ${{ secrets.AWS_ACCESS_KEY }}
+              secretKey: ${{ secrets.AWS_SECRET_KEY }}
+              sessionToken: ${{ secrets.AWS_SESSION_TOKEN }}
+              region: ${{ secrets.AWS_REGION }}
+              s3:
+                bucketName: ${{ secrets.AWS_BUCKET_NAME }}
+            YML
+          EOF
 
-    # Paso 6: Conectarse a EC2 y desplegar el contenedor
+      # Paso 6: Conectarse a EC2 y desplegar el contenedor
       - name: SSH commands to deploy
         run: |
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${{ secrets.USER_SERVER }}@${{ secrets.EC2_HOST }} << 'EOF'
-            # Autenticar en DockerHub desde EC2
             echo ${{ secrets.DOCKERHUB_TOKEN }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
-            # Descargar la última versión de la imagen
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/my-app:latest
-            # Parar y eliminar cualquier contenedor previo
             docker stop my-app || true && docker rm my-app || true
-            # Iniciar el contenedor
             docker run -d --name my-app -p 8080:8080 \
-                -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
+                -e AZURE_ISSUER_URI=${{ secrets.AZURE_ISSUER_URI }} \
+                -e AZURE_JWK_SET_URI=${{ secrets.AZURE_JWK_SET_URI }} \
                 -e AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }} \
                 -e AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }} \
                 -e AWS_SESSION_TOKEN=${{ secrets.AWS_SESSION_TOKEN }} \
