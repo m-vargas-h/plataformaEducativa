@@ -5,19 +5,20 @@ Microservicio desarrollado con Spring Boot para gestionar cursos e inscripciones
 ## Tecnologías
 - Java 21
 - Spring Boot 4.0.6
-- Spring Security + JWT
+- Spring Security — OAuth2 Resource Server
 - H2 (base de datos en memoria)
 - AWS SDK v2 (S3)
 - AWS API Gateway (HTTP API)
 - Azure AD B2C (IDaaS)
 - Docker
+- GitHub Actions (CI/CD)
 
 ## Requisitos previos
 - Java 21
 - Maven
 - Docker
 - Cuenta AWS Academy
-- Cuenta Azure
+- Cuenta Azure con tenant AD B2C configurado
 
 ## Configuración
 
@@ -30,7 +31,8 @@ Microservicio desarrollado con Spring Boot para gestionar cursos e inscripciones
 
 | Variable | Descripción |
 |---|---|
-| `JWT_SECRET` | Clave secreta para firmar tokens JWT internos (mínimo 32 caracteres) |
+| `AZURE_ISSUER_URI` | Issuer URI del tenant Azure AD B2C |
+| `AZURE_JWK_SET_URI` | JWK Set URI para verificar firma de tokens JWT |
 | `AWS_ACCESS_KEY` | Access key obtenida desde AWS Academy |
 | `AWS_SECRET_KEY` | Secret key obtenida desde AWS Academy |
 | `AWS_SESSION_TOKEN` | Session token obtenido desde AWS Academy |
@@ -47,75 +49,75 @@ java -jar target/*.jar
 
 ### Con Docker
 ```bash
-docker build -t plataforma-educativa:1.4 .
+docker build -t plataforma-educativa:1.5 .
 docker run -d -p 8080:8080 \
-  -e JWT_SECRET=tu_secret \
+  -e AZURE_ISSUER_URI=tu_issuer_uri \
+  -e AZURE_JWK_SET_URI=tu_jwk_set_uri \
   -e AWS_ACCESS_KEY=tu_access_key \
   -e AWS_SECRET_KEY=tu_secret_key \
   -e AWS_SESSION_TOKEN=tu_session_token \
   -e AWS_REGION=us-east-1 \
   -e AWS_BUCKET_NAME=tu_bucket \
-  --name plataforma-educativa plataforma-educativa:1.4
+  --name plataforma-educativa plataforma-educativa:1.5
 ```
 
-## Usuarios de prueba
+## Autenticación
 
-| Email | Password | Rol |
-|---|---|---|
-| admin@duoc.cl | password123 | ADMIN |
-| profesor@duoc.cl | password123 | PROFESOR |
-| alumno@duoc.cl | password123 | ALUMNO |
+Todos los endpoints están protegidos mediante Azure AD B2C. Se requiere un Access Token válido obtenido desde Azure AD B2C usando OAuth 2.0.
+
+### Obtener token en Postman
+1. Auth Type: `OAuth 2.0`
+2. Grant Type: `Client Credentials`
+3. Access Token URL: `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token`
+4. Client ID: `<application-client-id>`
+5. Client Secret: `<client-secret>`
+6. Scope: `https://<tenant-name>.onmicrosoft.com/<client-id>/.default`
+
+### Usar el token
+```
+Authorization: Bearer <access_token>
+```
 
 ## Endpoints
 
-### Auth
-| Método | Endpoint | Acceso | Descripción |
-|---|---|---|---|
-| POST | `/auth/register` | Público | Registrar usuario |
-| POST | `/auth/login` | Público | Login y obtener token JWT interno |
-
 ### Cursos
-| Método | Endpoint | Acceso | Descripción |
-|---|---|---|---|
-| GET | `/cursos` | Todos | Listar cursos disponibles |
-| GET | `/cursos/{id}` | Todos | Obtener curso por ID |
-| POST | `/cursos` | ADMIN, PROFESOR | Crear curso |
-| PUT | `/cursos/{id}` | ADMIN, PROFESOR | Actualizar curso |
-| DELETE | `/cursos/{id}` | ADMIN, PROFESOR | Eliminar curso |
+| Método | Endpoint | Descripción |
+|---|---|---|
+| GET | `/cursos` | Listar cursos disponibles |
+| GET | `/cursos/{id}` | Obtener curso por ID |
+| POST | `/cursos` | Crear curso |
+| PUT | `/cursos/{id}` | Actualizar curso |
+| DELETE | `/cursos/{id}` | Eliminar curso |
 
 ### Inscripciones
-| Método | Endpoint | Acceso | Descripción |
-|---|---|---|---|
-| POST | `/inscripciones` | ADMIN, ALUMNO | Crear inscripción |
-| GET | `/inscripciones/mis-inscripciones` | ADMIN, ALUMNO | Ver mis inscripciones |
-| DELETE | `/inscripciones/{id}` | ADMIN, ALUMNO | Eliminar inscripción |
-| GET | `/inscripciones/{id}/resumen` | ADMIN, ALUMNO | Descargar resumen y subir a S3 |
+| Método | Endpoint | Descripción |
+|---|---|---|
+| POST | `/inscripciones` | Crear inscripción |
+| GET | `/inscripciones/mis-inscripciones` | Ver mis inscripciones |
+| DELETE | `/inscripciones/{id}` | Eliminar inscripción |
+| GET | `/inscripciones/{id}/resumen` | Descargar resumen y subir a S3 |
 
 ### Storage S3
-> Los endpoints de storage están protegidos por AWS API Gateway mediante autorizador JWT de Azure AD B2C.
-> Para consumirlos se requiere un Access Token obtenido desde Azure AD B2C, enviado en el header `Authorization: Bearer <token>`.
-
 | Método | Endpoint | Descripción |
 |---|---|---|
 | POST | `/storage/upload/{folder}` | Subir archivo al bucket |
 | GET | `/storage/download/{folder}/{fileName}` | Descargar archivo del bucket |
-| PUT | `/storage/update/{folder}/{fileName}` | Reemplazar contenido de un archivo en el bucket |
+| PUT | `/storage/update/{folder}/{fileName}` | Reemplazar contenido de un archivo |
 | PUT | `/storage/move/{folder}` | Renombrar archivo en el bucket |
 | DELETE | `/storage/delete/{folder}/{fileName}` | Eliminar archivo del bucket |
 
-## Autenticación
+## Arquitectura
 
-### Endpoints internos (cursos e inscripciones)
-1. Obtén el token haciendo login en `/auth/login`
-2. Agrega el token en el header de cada request:
 ```
-Authorization: Bearer <token_jwt_interno>
+Cliente → AWS API Gateway (JWT Authorizer) → EC2:8080 (Spring Boot)
+                    ↑                               ↑
+             Azure AD B2C                  Spring Security
+           (valida token)                (OAuth2 Resource Server)
 ```
 
-### Endpoints de storage (via API Gateway)
-1. Obtén el Access Token desde Azure AD B2C usando OAuth 2.0 Client Credentials en Postman
-2. Agrega el token en el header de cada request:
-```
-Authorization: Bearer <access_token_azure>
-```
-###
+## CI/CD
+
+El proyecto usa GitHub Actions para el despliegue automático:
+1. Build y test con Maven
+2. Build y push de imagen Docker a DockerHub
+3. Deploy en AWS EC2 vía SSH
